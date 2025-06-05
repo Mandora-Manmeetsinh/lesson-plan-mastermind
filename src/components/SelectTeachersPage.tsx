@@ -60,7 +60,7 @@ const SelectTeachersPage = () => {
   };
 
   const assignTeacherToSubject = (subject: string, teacherId: string) => {
-    setSubjectAssignments(prev => 
+    setSubjectAssignments((prev: import('@/contexts/TimetableContext').SubjectAssignment[]) => 
       prev.map(assignment => {
         if (assignment.subject === subject) {
           const isAlreadyAssigned = assignment.assignedTeachers.includes(teacherId);
