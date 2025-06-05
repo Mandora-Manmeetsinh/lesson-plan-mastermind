@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,20 +60,19 @@ const SelectTeachersPage = () => {
   };
 
   const assignTeacherToSubject = (subject: string, teacherId: string) => {
-    setSubjectAssignments(prev => 
-      prev.map(assignment => {
-        if (assignment.subject === subject) {
-          const isAlreadyAssigned = assignment.assignedTeachers.includes(teacherId);
-          return {
-            ...assignment,
-            assignedTeachers: isAlreadyAssigned 
-              ? assignment.assignedTeachers.filter(id => id !== teacherId)
-              : [...assignment.assignedTeachers, teacherId]
-          };
-        }
-        return assignment;
-      })
-    );
+    const updatedAssignments = subjectAssignments.map(assignment => {
+      if (assignment.subject === subject) {
+        const isAlreadyAssigned = assignment.assignedTeachers.includes(teacherId);
+        return {
+          ...assignment,
+          assignedTeachers: isAlreadyAssigned 
+            ? assignment.assignedTeachers.filter(id => id !== teacherId)
+            : [...assignment.assignedTeachers, teacherId]
+        };
+      }
+      return assignment;
+    });
+    setSubjectAssignments(updatedAssignments);
   };
 
   const getTeacherName = (teacherId: string) => {
