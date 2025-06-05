@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +7,9 @@ import TimetableStepper from '@/components/TimetableStepper';
 import UploadSlotsPage from '@/components/UploadSlotsPage';
 import SelectTeachersPage from '@/components/SelectTeachersPage';
 import ViewSlotsPage from '@/components/ViewSlotsPage';
+import MapFacultyPage from '@/components/MapFacultyPage';
+import GenerateTimetablePage from '@/components/GenerateTimetablePage';
+import ViewDownloadPage from '@/components/ViewDownloadPage';
 
 const DashboardContent = () => {
   const { currentStep, setCurrentStep } = useTimetable();
@@ -25,11 +27,11 @@ const DashboardContent = () => {
       case 2:
         return <ViewSlotsPage />;
       case 3:
-        return <div className="p-8 text-center">Map Faculty to Classes - Coming Soon</div>;
+        return <MapFacultyPage />;
       case 4:
-        return <div className="p-8 text-center">Generate Timetable - Coming Soon</div>;
+        return <GenerateTimetablePage />;
       case 5:
-        return <div className="p-8 text-center">View & Download - Coming Soon</div>;
+        return <ViewDownloadPage />;
       default:
         return <UploadSlotsPage />;
     }
