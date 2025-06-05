@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,7 +61,7 @@ const SelectTeachersPage = () => {
   };
 
   const assignTeacherToSubject = (subject: string, teacherId: string) => {
-    setSubjectAssignments((prev: import('@/contexts/TimetableContext').SubjectAssignment[]) => 
+    setSubjectAssignments(prev => 
       prev.map(assignment => {
         if (assignment.subject === subject) {
           const isAlreadyAssigned = assignment.assignedTeachers.includes(teacherId);
