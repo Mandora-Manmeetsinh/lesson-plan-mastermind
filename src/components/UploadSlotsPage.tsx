@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { useTimetable } from '@/contexts/TimetableContext';
 import { 
   Upload, 
   FileText, 
@@ -12,19 +14,18 @@ import {
   X, 
   AlertCircle,
   Download,
-  ArrowDown
+  ArrowRight
 } from "lucide-react";
 
-interface UploadSlotsPageProps {
-  onBack: () => void;
-}
-
-const UploadSlotsPage = ({ onBack }: UploadSlotsPageProps) => {
+const UploadSlotsPage = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [dragActive, setDragActive] = useState(false);
+
+  const { toast } = useToast();
+  const { setFixedSlots, setCurrentStep, markStepCompleted } = useTimetable();
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -52,9 +53,14 @@ const UploadSlotsPage = ({ onBack }: UploadSlotsPageProps) => {
     }
   };
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
       setUploadStatus('error');
+      toast({
+        title: "Invalid File Format",
+        description: "Please upload a valid Excel file (.xlsx or .xls)",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -63,18 +69,56 @@ const UploadSlotsPage = ({ onBack }: UploadSlotsPageProps) => {
     setUploadStatus('uploading');
     setUploadProgress(0);
 
-    // Simulate upload progress
+    // Simulate file processing with progress
     const interval = setInterval(() => {
       setUploadProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
-          setIsUploading(false);
-          setUploadStatus('success');
+          processFileData(file);
           return 100;
         }
         return prev + 10;
       });
     }, 200);
+  };
+
+  const processFileData = async (file: File) => {
+    try {
+      // Simulate API call to process Excel file
+      // In real implementation, this would be an API call to your backend
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock parsed data - replace with actual API response
+      const mockParsedData = [
+        { department: 'Computer Science', subject: 'Data Structures', faculty: 'Dr. Smith', day: 'Monday', time: '09:00-10:00', room: 'CS-101' },
+        { department: 'Computer Science', subject: 'Algorithms', faculty: 'Prof. Johnson', day: 'Tuesday', time: '10:00-11:00', room: 'CS-102' },
+        { department: 'Mathematics', subject: 'Calculus I', faculty: 'Dr. Brown', day: 'Wednesday', time: '11:00-12:00', room: 'M-201' },
+        { department: 'Physics', subject: 'Quantum Physics', faculty: 'Prof. Davis', day: 'Thursday', time: '14:00-15:00', room: 'P-301' },
+      ];
+
+      setFixedSlots(mockParsedData);
+      setIsUploading(false);
+      setUploadStatus('success');
+      markStepCompleted(0);
+      
+      toast({
+        title: "Upload Successful!",
+        description: `${mockParsedData.length} fixed slots processed successfully.`,
+      });
+
+    } catch (error) {
+      setIsUploading(false);
+      setUploadStatus('error');
+      toast({
+        title: "Upload Failed",
+        description: "There was an error processing your file. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const proceedToNextStep = () => {
+    setCurrentStep(1);
   };
 
   const sampleData = [
@@ -87,14 +131,9 @@ const UploadSlotsPage = ({ onBack }: UploadSlotsPageProps) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Upload Fixed Slots</h1>
-          <p className="text-gray-600 mt-2">Import your pre-decided class schedules via Excel file</p>
-        </div>
-        <Button variant="outline" onClick={onBack}>
-          Back to Dashboard
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Upload Fixed Slots</h1>
+        <p className="text-gray-600 mt-2">Import your pre-decided class schedules via Excel file</p>
       </div>
 
       {/* Instructions */}
@@ -168,7 +207,7 @@ const UploadSlotsPage = ({ onBack }: UploadSlotsPageProps) => {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold">
-                    {isUploading ? 'Uploading...' : 'Upload Fixed Slots File'}
+                    {isUploading ? 'Processing...' : 'Upload Fixed Slots File'}
                   </h3>
                   <p className="text-gray-600">
                     {isUploading 
@@ -213,7 +252,7 @@ const UploadSlotsPage = ({ onBack }: UploadSlotsPageProps) => {
           <CardDescription>Download our sample Excel template to get started</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" className="w-full sm:w-auto">
+          <Button variant="outline">
             <Download className="mr-2 w-4 h-4" />
             Download Sample Template
           </Button>
@@ -254,19 +293,13 @@ const UploadSlotsPage = ({ onBack }: UploadSlotsPageProps) => {
                 </tbody>
               </table>
             </div>
-            <div className="mt-6 flex flex-col sm:flex-row gap-4">
+            <div className="mt-6">
               <Button 
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                onClick={() => {
-                  // Here you would typically save the data and mark the module as complete
-                  onBack();
-                }}
+                onClick={proceedToNextStep}
               >
-                Confirm & Save Slots
-                <ArrowDown className="ml-2 w-4 h-4" />
-              </Button>
-              <Button variant="outline">
-                Edit Data
+                Proceed to Select Teachers
+                <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             </div>
           </CardContent>
