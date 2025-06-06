@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useTimetable } from '@/contexts/TimetableContext';
+import { parseFixedSlotsFromExcel, generateSampleExcelFile, ExcelFixedSlot } from '@/utils/excelParser';
 import { 
   Upload, 
   FileText, 
@@ -25,7 +25,7 @@ const UploadSlotsPage = () => {
   const [dragActive, setDragActive] = useState(false);
 
   const { toast } = useToast();
-  const { setFixedSlots, setCurrentStep, markStepCompleted } = useTimetable();
+  const { excelFixedSlots, setExcelFixedSlots, setFixedSlots, setCurrentStep, markStepCompleted } = useTimetable();
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -69,41 +69,43 @@ const UploadSlotsPage = () => {
     setUploadStatus('uploading');
     setUploadProgress(0);
 
-    // Simulate file processing with progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          processFileData(file);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
-  };
-
-  const processFileData = async (file: File) => {
     try {
-      // Simulate API call to process Excel file
-      // In real implementation, this would be an API call to your backend
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock parsed data - replace with actual API response
-      const mockParsedData = [
-        { department: 'Computer Science', subject: 'Data Structures', faculty: 'Dr. Smith', day: 'Monday', time: '09:00-10:00', room: 'CS-101' },
-        { department: 'Computer Science', subject: 'Algorithms', faculty: 'Prof. Johnson', day: 'Tuesday', time: '10:00-11:00', room: 'CS-102' },
-        { department: 'Mathematics', subject: 'Calculus I', faculty: 'Dr. Brown', day: 'Wednesday', time: '11:00-12:00', room: 'M-201' },
-        { department: 'Physics', subject: 'Quantum Physics', faculty: 'Prof. Davis', day: 'Thursday', time: '14:00-15:00', room: 'P-301' },
-      ];
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 100);
 
-      setFixedSlots(mockParsedData);
+      // Parse the Excel file
+      const parsedData = await parseFixedSlotsFromExcel(file);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      // Convert to legacy format for compatibility
+      const legacySlots = parsedData.map(slot => ({
+        department: slot.department,
+        subject: slot.subject,
+        faculty: slot.faculty,
+        day: slot.day,
+        time: slot.time,
+        room: slot.room
+      }));
+
+      setExcelFixedSlots(parsedData);
+      setFixedSlots(legacySlots);
       setIsUploading(false);
       setUploadStatus('success');
       markStepCompleted(0);
       
       toast({
         title: "Upload Successful!",
-        description: `${mockParsedData.length} fixed slots processed successfully.`,
+        description: `${parsedData.length} fixed slots processed successfully.`,
       });
 
     } catch (error) {
@@ -111,9 +113,10 @@ const UploadSlotsPage = () => {
       setUploadStatus('error');
       toast({
         title: "Upload Failed",
-        description: "There was an error processing your file. Please try again.",
+        description: "There was an error processing your file. Please check the format and try again.",
         variant: "destructive"
       });
+      console.error('Error parsing Excel file:', error);
     }
   };
 
@@ -121,12 +124,13 @@ const UploadSlotsPage = () => {
     setCurrentStep(1);
   };
 
-  const sampleData = [
-    { department: 'Computer Science', subject: 'Data Structures', faculty: 'Dr. Smith', day: 'Monday', time: '09:00-10:00', room: 'CS-101' },
-    { department: 'Computer Science', subject: 'Algorithms', faculty: 'Prof. Johnson', day: 'Tuesday', time: '10:00-11:00', room: 'CS-102' },
-    { department: 'Mathematics', subject: 'Calculus I', faculty: 'Dr. Brown', day: 'Wednesday', time: '11:00-12:00', room: 'M-201' },
-    { department: 'Physics', subject: 'Quantum Physics', faculty: 'Prof. Davis', day: 'Thursday', time: '14:00-15:00', room: 'P-301' },
-  ];
+  const downloadSampleTemplate = () => {
+    generateSampleExcelFile('fixedSlots');
+    toast({
+      title: "Sample Downloaded",
+      description: "Check your downloads folder for sample_fixedSlots.xlsx",
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -141,7 +145,7 @@ const UploadSlotsPage = () => {
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
           Upload an Excel file (.xlsx or .xls) containing your fixed class slots. 
-          The file should include columns: Department, Subject, Faculty, Day, Time, and Room.
+          Required columns: Department, Subject, Faculty, Day, Time, Room, Batch.
         </AlertDescription>
       </Alert>
 
@@ -176,7 +180,7 @@ const UploadSlotsPage = () => {
                   <h3 className="text-lg font-semibold text-green-700">Upload Successful!</h3>
                   <p className="text-green-600">{uploadedFile?.name}</p>
                   <Badge variant="secondary" className="mt-2 bg-green-100 text-green-700">
-                    {sampleData.length} slots processed
+                    {excelFixedSlots.length} slots processed
                   </Badge>
                 </div>
               </div>
@@ -252,7 +256,7 @@ const UploadSlotsPage = () => {
           <CardDescription>Download our sample Excel template to get started</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline">
+          <Button variant="outline" onClick={downloadSampleTemplate}>
             <Download className="mr-2 w-4 h-4" />
             Download Sample Template
           </Button>
@@ -260,7 +264,7 @@ const UploadSlotsPage = () => {
       </Card>
 
       {/* Preview Table */}
-      {uploadStatus === 'success' && (
+      {uploadStatus === 'success' && excelFixedSlots.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Preview: Uploaded Fixed Slots</CardTitle>
@@ -277,10 +281,11 @@ const UploadSlotsPage = () => {
                     <th className="border border-gray-200 px-4 py-2 text-left">Day</th>
                     <th className="border border-gray-200 px-4 py-2 text-left">Time</th>
                     <th className="border border-gray-200 px-4 py-2 text-left">Room</th>
+                    <th className="border border-gray-200 px-4 py-2 text-left">Batch</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sampleData.map((row, index) => (
+                  {excelFixedSlots.slice(0, 10).map((row, index) => (
                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                       <td className="border border-gray-200 px-4 py-2">{row.department}</td>
                       <td className="border border-gray-200 px-4 py-2">{row.subject}</td>
@@ -288,17 +293,23 @@ const UploadSlotsPage = () => {
                       <td className="border border-gray-200 px-4 py-2">{row.day}</td>
                       <td className="border border-gray-200 px-4 py-2">{row.time}</td>
                       <td className="border border-gray-200 px-4 py-2">{row.room}</td>
+                      <td className="border border-gray-200 px-4 py-2">{row.batch}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {excelFixedSlots.length > 10 && (
+                <p className="mt-2 text-sm text-gray-600">
+                  Showing first 10 of {excelFixedSlots.length} rows
+                </p>
+              )}
             </div>
             <div className="mt-6">
               <Button 
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                 onClick={proceedToNextStep}
               >
-                Proceed to Select Teachers
+                Proceed to Upload Teachers
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
             </div>

@@ -1,5 +1,8 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { DataStorage } from '@/utils/dataStorage';
+import { ExcelTeacher, ExcelFixedSlot, ExcelSubjectMapping } from '@/utils/excelParser';
+import { GeneratedTimetable } from '@/utils/timetableGenerator';
 
 export interface FixedSlot {
   department: string;
@@ -37,12 +40,23 @@ interface TimetableContextType {
   fixedSlots: FixedSlot[];
   teachers: Teacher[];
   subjectAssignments: SubjectAssignment[];
+  excelTeachers: ExcelTeacher[];
+  excelFixedSlots: ExcelFixedSlot[];
+  excelSubjectMappings: ExcelSubjectMapping[];
+  generatedTimetable: GeneratedTimetable | null;
+  isGenerating: boolean;
   setCurrentStep: (step: number) => void;
   setFixedSlots: (slots: FixedSlot[]) => void;
   setTeachers: (teachers: Teacher[]) => void;
   setSubjectAssignments: (assignments: SubjectAssignment[]) => void;
+  setExcelTeachers: (teachers: ExcelTeacher[]) => void;
+  setExcelFixedSlots: (slots: ExcelFixedSlot[]) => void;
+  setExcelSubjectMappings: (mappings: ExcelSubjectMapping[]) => void;
+  setGeneratedTimetable: (timetable: GeneratedTimetable) => void;
+  setIsGenerating: (generating: boolean) => void;
   markStepCompleted: (stepIndex: number) => void;
   canProceedToStep: (stepIndex: number) => boolean;
+  clearAllData: () => void;
 }
 
 const TimetableContext = createContext<TimetableContextType | undefined>(undefined);
@@ -64,6 +78,11 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
   const [fixedSlots, setFixedSlots] = useState<FixedSlot[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [subjectAssignments, setSubjectAssignments] = useState<SubjectAssignment[]>([]);
+  const [excelTeachers, setExcelTeachers] = useState<ExcelTeacher[]>([]);
+  const [excelFixedSlots, setExcelFixedSlots] = useState<ExcelFixedSlot[]>([]);
+  const [excelSubjectMappings, setExcelSubjectMappings] = useState<ExcelSubjectMapping[]>([]);
+  const [generatedTimetable, setGeneratedTimetable] = useState<GeneratedTimetable | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const [steps, setSteps] = useState<TimetableStep[]>([
     {
@@ -75,22 +94,22 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
     },
     {
       id: 'select-teachers',
-      title: 'Select Teachers',
-      description: 'Assign teachers to subjects',
+      title: 'Upload Teachers',
+      description: 'Import teacher data and availability',
       completed: false,
       path: '/select-teachers'
     },
     {
       id: 'view-slots',
-      title: 'View Fixed Slots',
-      description: 'Review pre-assigned slots',
+      title: 'Upload Subject Mappings',
+      description: 'Import subject-class mappings',
       completed: false,
       path: '/view-slots'
     },
     {
       id: 'map-faculty',
-      title: 'Map Faculty to Classes',
-      description: 'Assign teachers to specific batches',
+      title: 'Review Data',
+      description: 'Review all uploaded data',
       completed: false,
       path: '/map-faculty'
     },
@@ -110,6 +129,37 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
     }
   ]);
 
+  // Load data from localStorage on mount
+  useEffect(() => {
+    const storedTeachers = DataStorage.getTeachers();
+    const storedFixedSlots = DataStorage.getFixedSlots();
+    const storedSubjectMappings = DataStorage.getSubjectMappings();
+    const storedTimetable = DataStorage.getGeneratedTimetable();
+
+    if (storedTeachers.length > 0) {
+      setExcelTeachers(storedTeachers);
+    }
+    if (storedFixedSlots.length > 0) {
+      setExcelFixedSlots(storedFixedSlots);
+      // Convert to legacy format for compatibility
+      const legacySlots: FixedSlot[] = storedFixedSlots.map(slot => ({
+        department: slot.department,
+        subject: slot.subject,
+        faculty: slot.faculty,
+        day: slot.day,
+        time: slot.time,
+        room: slot.room
+      }));
+      setFixedSlots(legacySlots);
+    }
+    if (storedSubjectMappings.length > 0) {
+      setExcelSubjectMappings(storedSubjectMappings);
+    }
+    if (storedTimetable) {
+      setGeneratedTimetable(storedTimetable);
+    }
+  }, []);
+
   const markStepCompleted = (stepIndex: number) => {
     setSteps(prev => prev.map((step, index) => 
       index === stepIndex ? { ...step, completed: true } : step
@@ -121,6 +171,45 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
     return steps[stepIndex - 1]?.completed || false;
   };
 
+  const clearAllData = () => {
+    DataStorage.clearAllData();
+    setFixedSlots([]);
+    setTeachers([]);
+    setSubjectAssignments([]);
+    setExcelTeachers([]);
+    setExcelFixedSlots([]);
+    setExcelSubjectMappings([]);
+    setGeneratedTimetable(null);
+    setIsGenerating(false);
+    setCurrentStep(0);
+    setSteps(prev => prev.map(step => ({ ...step, completed: false })));
+  };
+
+  // Auto-save data when it changes
+  useEffect(() => {
+    if (excelTeachers.length > 0) {
+      DataStorage.saveTeachers(excelTeachers);
+    }
+  }, [excelTeachers]);
+
+  useEffect(() => {
+    if (excelFixedSlots.length > 0) {
+      DataStorage.saveFixedSlots(excelFixedSlots);
+    }
+  }, [excelFixedSlots]);
+
+  useEffect(() => {
+    if (excelSubjectMappings.length > 0) {
+      DataStorage.saveSubjectMappings(excelSubjectMappings);
+    }
+  }, [excelSubjectMappings]);
+
+  useEffect(() => {
+    if (generatedTimetable) {
+      DataStorage.saveGeneratedTimetable(generatedTimetable);
+    }
+  }, [generatedTimetable]);
+
   return (
     <TimetableContext.Provider value={{
       currentStep,
@@ -128,12 +217,23 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
       fixedSlots,
       teachers,
       subjectAssignments,
+      excelTeachers,
+      excelFixedSlots,
+      excelSubjectMappings,
+      generatedTimetable,
+      isGenerating,
       setCurrentStep,
       setFixedSlots,
       setTeachers,
       setSubjectAssignments,
+      setExcelTeachers,
+      setExcelFixedSlots,
+      setExcelSubjectMappings,
+      setGeneratedTimetable,
+      setIsGenerating,
       markStepCompleted,
-      canProceedToStep
+      canProceedToStep,
+      clearAllData
     }}>
       {children}
     </TimetableContext.Provider>

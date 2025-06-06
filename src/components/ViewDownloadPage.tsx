@@ -3,49 +3,104 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTimetable } from '@/contexts/TimetableContext';
+import { exportTimetableToExcel, exportTimetableToPDF } from '@/utils/exportUtils';
+import { DataStorage } from '@/utils/dataStorage';
 import { 
   Download, 
   FileText,
   Grid2X2,
   Lock,
   Mail,
-  Filter
+  Filter,
+  AlertTriangle,
+  RefreshCw
 } from "lucide-react";
 
 const ViewDownloadPage = () => {
-  const { fixedSlots } = useTimetable();
+  const { generatedTimetable, excelFixedSlots, clearAllData, setCurrentStep } = useTimetable();
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedFormat, setSelectedFormat] = useState('excel');
 
-  const departments = Array.from(new Set(fixedSlots.map(slot => slot.department)));
+  if (!generatedTimetable) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">View & Download Timetable</h1>
+          <p className="text-gray-600 mt-2">No timetable has been generated yet</p>
+        </div>
+
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No timetable has been generated yet. Please go back and generate a timetable first.
+          </AlertDescription>
+        </Alert>
+
+        <Card>
+          <CardContent className="p-6 text-center">
+            <Grid2X2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Timetable Available</h3>
+            <p className="text-gray-600 mb-4">
+              Please generate a timetable first to view and download it.
+            </p>
+            <Button 
+              onClick={() => setCurrentStep(4)}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              Go to Generation
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const departments = Object.keys(generatedTimetable);
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const timeSlots = ['9:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-1:00', '2:00-3:00', '3:00-4:00'];
 
-  // Mock generated timetable data
-  const mockTimetable = {
-    'Computer Science': {
-      'Monday': {
-        '9:00-10:00': { subject: 'Data Structures', teacher: 'Dr. Smith', room: 'CS101', isFixed: true },
-        '10:00-11:00': { subject: 'Algorithms', teacher: 'Dr. Johnson', room: 'CS102', isFixed: false },
-        '11:00-12:00': { subject: 'Database Systems', teacher: 'Dr. Brown', room: 'CS103', isFixed: false },
-      },
-      'Tuesday': {
-        '9:00-10:00': { subject: 'Web Development', teacher: 'Dr. Davis', room: 'CS104', isFixed: false },
-        '10:00-11:00': { subject: 'Software Engineering', teacher: 'Dr. Wilson', room: 'CS105', isFixed: true },
-      },
-      // Add more days and slots as needed
+  // Calculate statistics
+  const totalSlots = Object.values(generatedTimetable).reduce((total, dept) => {
+    return total + Object.values(dept).reduce((deptTotal, day) => {
+      return deptTotal + Object.keys(day).length;
+    }, 0);
+  }, 0);
+
+  const fixedSlots = Object.values(generatedTimetable).reduce((total, dept) => {
+    return total + Object.values(dept).reduce((deptTotal, day) => {
+      return deptTotal + Object.values(day).filter(slot => slot.isFixed).length;
+    }, 0);
+  }, 0);
+
+  const generatedSlots = totalSlots - fixedSlots;
+
+  const displayDepartment = selectedDepartment || departments[0] || '';
+  const departmentData = generatedTimetable[displayDepartment] || {};
+
+  const handleDownload = (format: string) => {
+    try {
+      if (format === 'excel') {
+        const filename = `timetable_${new Date().toISOString().split('T')[0]}.xlsx`;
+        exportTimetableToExcel(generatedTimetable, filename);
+      } else if (format === 'pdf') {
+        exportTimetableToPDF(generatedTimetable);
+      }
+    } catch (error) {
+      console.error('Error exporting timetable:', error);
     }
   };
 
-  const handleDownload = (format: string) => {
-    console.log(`Downloading timetable in ${format} format`);
-    // Implement download logic here
+  const handleEmailTimetable = () => {
+    const dataString = DataStorage.exportData();
+    const mailtoLink = `mailto:?subject=College Timetable&body=Please find the timetable data attached.%0A%0A${encodeURIComponent(dataString)}`;
+    window.open(mailtoLink);
   };
 
-  const handleEmailTimetable = () => {
-    console.log('Sending timetable via email');
-    // Implement email logic here
+  const handleNewTimetable = () => {
+    clearAllData();
+    setCurrentStep(0);
   };
 
   return (
@@ -63,7 +118,7 @@ const ViewDownloadPage = () => {
             <div className="flex items-center space-x-2">
               <Grid2X2 className="w-5 h-5 text-blue-600" />
               <div>
-                <p className="text-2xl font-bold">150</p>
+                <p className="text-2xl font-bold">{totalSlots}</p>
                 <p className="text-sm text-gray-600">Total Slots</p>
               </div>
             </div>
@@ -75,7 +130,7 @@ const ViewDownloadPage = () => {
             <div className="flex items-center space-x-2">
               <Lock className="w-5 h-5 text-green-600" />
               <div>
-                <p className="text-2xl font-bold">{fixedSlots.length}</p>
+                <p className="text-2xl font-bold">{fixedSlots}</p>
                 <p className="text-sm text-gray-600">Fixed Slots</p>
               </div>
             </div>
@@ -87,7 +142,7 @@ const ViewDownloadPage = () => {
             <div className="flex items-center space-x-2">
               <FileText className="w-5 h-5 text-purple-600" />
               <div>
-                <p className="text-2xl font-bold">{150 - fixedSlots.length}</p>
+                <p className="text-2xl font-bold">{generatedSlots}</p>
                 <p className="text-sm text-gray-600">Generated Slots</p>
               </div>
             </div>
@@ -99,15 +154,15 @@ const ViewDownloadPage = () => {
             <div className="flex items-center space-x-2">
               <Filter className="w-5 h-5 text-orange-600" />
               <div>
-                <p className="text-2xl font-bold">0</p>
-                <p className="text-sm text-gray-600">Conflicts</p>
+                <p className="text-2xl font-bold">{departments.length}</p>
+                <p className="text-sm text-gray-600">Departments</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filter and Export Options */}
+      {/* Export Options */}
       <Card>
         <CardHeader>
           <CardTitle>Export Options</CardTitle>
@@ -138,7 +193,6 @@ const ViewDownloadPage = () => {
               >
                 <option value="excel">Excel (.xlsx)</option>
                 <option value="pdf">PDF Document</option>
-                <option value="csv">CSV File</option>
               </select>
             </div>
             
@@ -163,74 +217,78 @@ const ViewDownloadPage = () => {
       </Card>
 
       {/* Timetable Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Timetable Preview - Computer Science Department</CardTitle>
-          <CardDescription>
-            Complete weekly schedule with fixed and generated slots
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="border border-gray-300 p-3 text-left font-medium">Time</th>
-                  {days.map(day => (
-                    <th key={day} className="border border-gray-300 p-3 text-center font-medium">{day}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {timeSlots.map(time => (
-                  <tr key={time}>
-                    <td className="border border-gray-300 p-3 font-medium bg-gray-50">{time}</td>
-                    {days.map(day => {
-                      const slot = mockTimetable['Computer Science']?.[day]?.[time];
-                      
-                      return (
-                        <td key={`${day}-${time}`} className="border border-gray-300 p-2">
-                          {slot ? (
-                            <div className={`p-3 rounded-md ${slot.isFixed ? 'bg-blue-100 border-l-4 border-blue-500' : 'bg-green-100 border-l-4 border-green-500'}`}>
-                              <div className="font-medium text-sm">{slot.subject}</div>
-                              <div className="text-xs text-gray-600">{slot.teacher}</div>
-                              <div className="text-xs text-gray-500">{slot.room}</div>
-                              <Badge 
-                                variant="secondary" 
-                                className={`mt-1 text-xs ${slot.isFixed ? 'bg-blue-200 text-blue-800' : 'bg-green-200 text-green-800'}`}
-                              >
-                                {slot.isFixed ? (
-                                  <>
-                                    <Lock className="w-3 h-3 mr-1" />
-                                    Fixed
-                                  </>
-                                ) : (
-                                  'Generated'
-                                )}
-                              </Badge>
-                            </div>
-                          ) : (
-                            <div className="h-16 bg-gray-50 rounded-md flex items-center justify-center">
-                              <span className="text-xs text-gray-400">Free</span>
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
+      {displayDepartment && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Timetable Preview - {displayDepartment} Department</CardTitle>
+            <CardDescription>
+              Complete weekly schedule with fixed and generated slots
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="border border-gray-300 p-3 text-left font-medium">Time</th>
+                    {days.map(day => (
+                      <th key={day} className="border border-gray-300 p-3 text-center font-medium">{day}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                </thead>
+                <tbody>
+                  {timeSlots.map(time => (
+                    <tr key={time}>
+                      <td className="border border-gray-300 p-3 font-medium bg-gray-50">{time}</td>
+                      {days.map(day => {
+                        const slot = departmentData[day]?.[time];
+                        
+                        return (
+                          <td key={`${day}-${time}`} className="border border-gray-300 p-2">
+                            {slot ? (
+                              <div className={`p-3 rounded-md ${slot.isFixed ? 'bg-blue-100 border-l-4 border-blue-500' : 'bg-green-100 border-l-4 border-green-500'}`}>
+                                <div className="font-medium text-sm">{slot.subject}</div>
+                                <div className="text-xs text-gray-600">{slot.teacher}</div>
+                                <div className="text-xs text-gray-500">{slot.room}</div>
+                                <div className="text-xs text-gray-500">{slot.batch}</div>
+                                <Badge 
+                                  variant="secondary" 
+                                  className={`mt-1 text-xs ${slot.isFixed ? 'bg-blue-200 text-blue-800' : 'bg-green-200 text-green-800'}`}
+                                >
+                                  {slot.isFixed ? (
+                                    <>
+                                      <Lock className="w-3 h-3 mr-1" />
+                                      Fixed
+                                    </>
+                                  ) : (
+                                    'Generated'
+                                  )}
+                                </Badge>
+                              </div>
+                            ) : (
+                              <div className="h-16 bg-gray-50 rounded-md flex items-center justify-center">
+                                <span className="text-xs text-gray-400">Free</span>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Action Buttons */}
       <div className="flex justify-between">
         <Button 
           variant="outline"
-          onClick={() => window.location.reload()}
+          onClick={handleNewTimetable}
         >
+          <RefreshCw className="w-4 h-4 mr-2" />
           Generate New Timetable
         </Button>
         <div className="space-x-2">
