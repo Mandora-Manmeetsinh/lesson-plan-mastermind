@@ -57,6 +57,7 @@ interface TimetableContextType {
   markStepCompleted: (stepIndex: number) => void;
   canProceedToStep: (stepIndex: number) => boolean;
   clearAllData: () => void;
+  validateStepData: (stepIndex: number) => boolean;
 }
 
 const TimetableContext = createContext<TimetableContextType | undefined>(undefined);
@@ -158,7 +159,36 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
     if (storedTimetable) {
       setGeneratedTimetable(storedTimetable);
     }
+
+    // Auto-complete steps based on available data
+    updateStepCompletionStatus();
   }, []);
+
+  const validateStepData = (stepIndex: number): boolean => {
+    switch (stepIndex) {
+      case 0:
+        return excelFixedSlots.length > 0;
+      case 1:
+        return excelTeachers.length > 0;
+      case 2:
+        return excelSubjectMappings.length > 0;
+      case 3:
+        return excelFixedSlots.length > 0 && excelTeachers.length > 0 && excelSubjectMappings.length > 0;
+      case 4:
+        return validateStepData(3);
+      case 5:
+        return generatedTimetable !== null;
+      default:
+        return false;
+    }
+  };
+
+  const updateStepCompletionStatus = () => {
+    setSteps(prev => prev.map((step, index) => ({
+      ...step,
+      completed: validateStepData(index)
+    })));
+  };
 
   const markStepCompleted = (stepIndex: number) => {
     setSteps(prev => prev.map((step, index) => 
@@ -168,7 +198,7 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
 
   const canProceedToStep = (stepIndex: number) => {
     if (stepIndex === 0) return true;
-    return steps[stepIndex - 1]?.completed || false;
+    return validateStepData(stepIndex - 1);
   };
 
   const clearAllData = () => {
@@ -189,24 +219,28 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
   useEffect(() => {
     if (excelTeachers.length > 0) {
       DataStorage.saveTeachers(excelTeachers);
+      updateStepCompletionStatus();
     }
   }, [excelTeachers]);
 
   useEffect(() => {
     if (excelFixedSlots.length > 0) {
       DataStorage.saveFixedSlots(excelFixedSlots);
+      updateStepCompletionStatus();
     }
   }, [excelFixedSlots]);
 
   useEffect(() => {
     if (excelSubjectMappings.length > 0) {
       DataStorage.saveSubjectMappings(excelSubjectMappings);
+      updateStepCompletionStatus();
     }
   }, [excelSubjectMappings]);
 
   useEffect(() => {
     if (generatedTimetable) {
       DataStorage.saveGeneratedTimetable(generatedTimetable);
+      updateStepCompletionStatus();
     }
   }, [generatedTimetable]);
 
@@ -233,7 +267,8 @@ export const TimetableProvider = ({ children }: TimetableProviderProps) => {
       setIsGenerating,
       markStepCompleted,
       canProceedToStep,
-      clearAllData
+      clearAllData,
+      validateStepData
     }}>
       {children}
     </TimetableContext.Provider>
